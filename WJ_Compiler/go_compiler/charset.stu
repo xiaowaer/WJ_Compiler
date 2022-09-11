@@ -1,0 +1,29 @@
+    字符集说明:
+        编码:只学一种,那就是UTF-8,也成为万国码,说白了就是一个大的编码库,包括了绝大部分的字符.
+        ascii编码:只需要关注前255个,utf-8 单字节模式,和它是一致的.
+        不想学本地化编码如GB2312,代价太大.
+
+        UTF-8是unicode编码家族中的一员,也是go src 的默认编码.
+
+        它有四种模式:
+        code point 是代码号.    
+        Number of bytes     First code point    Last code point      Byte1      Byte2       Byte3       Byte4
+                1               U+0000              U+007F          0xxxxxxx
+                2               U+0080              U+07FF          110xxxxx    10xxxxxx    
+                3               U+0800              U+FFFF          1110xxxx    10xxxxxx    10xxxxxx
+                4               U+10000             U+10FFFF        11110xxx    10xxxxxx    10xxxxxx    10xxxxxx
+
+        
+        四字节模式包含一百万+字符,包含大量emoji 
+            Rune literals 字符字面量注意以下词法错误:
+                '\''         // rune literal containing single quote character
+                'aa'         // illegal: too many characters
+                '\k'         // illegal: k is not recognized after a backslash
+                '\xa'        // illegal: too few hexadecimal digits
+                '\0'         // illegal: too few octal digits
+                '\400'       // illegal: octal value over 255
+                '\uDFFF'     // illegal: surrogate half
+                '\U00110000' // illegal: invalid Unicode code point
+                                
+
+

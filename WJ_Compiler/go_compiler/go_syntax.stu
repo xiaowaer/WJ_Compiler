@@ -1,0 +1,762 @@
+    语法规则 --起飞! --起飞! -- 起飞!!!!!!!!!!!!!!!!!!!!
+    
+    参考资料: https://go.dev/ref/spec#Declaration  --go1.18 版
+    
+    重点:go语言是怎么描述抽象语法的?
+        go 语法使用了自己的一套变种的EBNF(拓展巴科斯范式)来描述go语言本身的抽象语法规则.
+        
+        什么是BNF(巴科斯范式)? --巴科斯-诺尔范式 (这两个b,都有图灵奖)
+                这是一种表示上下文无关文法的语言,上下文无关文法描述了一类形式语言.
+       
+        -------------------------------(不要马上陷入语言学的坑之中)----------------------------------------
+       什么是上下文无关文法?
+        
+        什么是形式文法?--语法规则(wiki)
+             是有效语法的生成规则.
+             这些规则描述了如何用语言的字母表生成符合语法的有效字符串
+             --简单来说就是语法规则.
+
+             ...... 
+             我的目的是什么?    
+                我不是搞语言研究的,我只是希望通过对go编译器的学习来更好的学习,以求找到go语言开发的工作.
+                所以,不需要对文法这块学的很深,我只是需要看懂go的抽象语法规则.
+                
+                并且我们相信go doc 可以帮助我们理解这个过程,这就足够了.
+        -----------------------------------------------------------------------
+       
+       重点:EBNF可以表达语法规则.
+            EBNF is a code that expresses the syntax of a formal language.
+            
+            EBNF 是又若干规则组成.
+                规则是从它的符号表里面字符通过特定排列组成的.
+
+            EBNF    Table of symbols    
+                       Usage(用法)                             Notaion(记号)
+                     
+                        |definition     (定义规则)                = 
+                        |concatenation  (连接)                    ,  
+                        |termination    (终止)                    ;
+                        |alternation     (交替,或者)              |
+                        |optional      (可选,可有可无)           [...]
+                        |repetition     (重复)                   {...}
+                        |grouping        (分组)                  (...)
+                        |terminal string                         "..."
+                        |terminal string                         '...'
+                        |comment         (注释)            
+                        |special         (特殊序列)
+                        |eception                                 -
+                        =======================================================
+        
+            go 的 EBNF 实现:
+            | Syntax      = { Production } .
+            | Production  = production_name "=" [ Expression ] "." .
+            | Expression  = Term { "|" Term } .
+            | Term        = Factor { Factor } .
+            | Factor      = production_name | token [ "…" token ] | Group | Option | Repetition .
+            | Group       = "(" Expression ")" .
+            | Option      = "[" Expression "]" .
+            | Repetition  = "{" Expression "}" 
+            |                    
+            |   | alternation 或者
+            |   () 组合 出现一次
+            |   []  option 可选 0|1 次
+            |   {}  repetition 零或多次
+            ===========================================================================
+
+      ''''''''''''''  Source code represent (源代码表示)&Characters''''''''''''''''''''''''
+        
+            注意:
+            1.字符允许是两个代码点的结合体.
+            2.每个代码点表示不同字符
+            3.编译器可能不允许存在,NUL字符(U+0000)
+            4.编译器可能忽略字节顺序标记这个代码点(U+FEFF),如果出现在源文本的第一个Unicode字符,可能在源代码其他地方被禁用.
+            
+        字符规则:
+          |  newline        = /* the Unicode code point U+000A */ .
+          |  unicode_char   = /* an arbitrary Unicode code point except newline */ .
+          |  unicode_letter = /* a Unicode code point categorized as "Letter" */ .
+          |  unicode_digit  = /* a Unicode code point categorized as "Number, decimal digit" */ 
+          |letter        = unicode_letter | "_" .   (_ U+005F)
+          | decimal_digit = "0" … "9" .
+          | binary_digit  = "0" | "1" .
+          | octal_digit   = "0" … "7" .
+          | hex_digit     = "0" … "9" | "A" … "F" | "a" … "f" .
+           ======================================================================================
+           Go 将任何字母类别 Lu、 LL、 Lt、 Lm 或 Lo 中的所有字符 as Unicode 
+                Lu - 大写字母 , Ll - 小写字母 , Lt - 词首大写字母,Lm - 修饰字母 ,Lo - 其他字母
+            
+            将数字类别 Nd 中的字符视为 Unicode 数字。 Nd - 十进制数字
+        
+"""""""""""""""""""""""""""""""""""""""注释:""""""""""""""""""""""""""""""""""""""""""""""""""""""""
+            单行注释:   //
+            多行注释:  /**/
+
+""""""""""""""""""""""""""""""""""""""""""token(词法最小单元)""""""""""""""""""""""""""""""""""""""""""""""""""""""
+            分类:
+                identifier
+                keywords
+                operator and puncuation
+                literals
+                separates : spaces(U+0020)|horizontal tabs(U+0009)|carriage returns(U+000D) |newline(U+000A)
+""""""""""""""""""""""""""""""""""""""""""""""Semicolons(分号)""""""""""""""""""""""""""""""""""""""""""""""""""""
+                    大体用途:分号是需多 公式的结束符号.
+                    
+                    注意:
+                        在这两个大的情况下分号可以省略:
+                            1.1.以标识符为行结尾
+                            1.2.以 an integer, floating-point, imaginary, rune, or string literal为行结尾
+                            1.3.one of the keywords break, continue, fallthrough, or return 为行结尾
+                            1.4.one of the operators and punrtuation ++, --, ), ], or } 为行结尾
+                    
+                            2.1 To allow complex statements to occupy a single line,
+                                a semicolon may be omitted before a closing ")" or "}".
+                                全部写到一行的复杂句,末尾的) 或} 补全一个分号. (还是写短句子 分行舒服)
+            
+"""""""""""""""""""""""""""""""""""""""""""""""""""词法分析相关"""""""""""""""""""""""""""""""""""""""""""""""""""""
+                Identifiers
+                    |identifier = letter { letter | unicode_digit } . 
+                    =================================================
+                    ----------------------demo-----------------------
+                    a
+                    _x9
+                    ThisVariableIsExported
+                    αβ
+                    -------------------------------------------------
+                Keywords
+                    --引导程序整体结构关键字--
+                    | package //定义包名的关键字
+                    | import  //导入包名关键字
+                    | const   //常量声明关键字
+                    | var     //变量声明关键字
+                    | func    //函数定义关键字
+                    | defer   //延迟执行关键字
+                    | go      //并发语法糖关键字
+                    | return  //函数返回关键字
+                    | type
+                    
+                    --声明复合数据结构的4个关键字--
+                    | struct  //定义结构类型关键字  
+                    | interface //定义接口类型关键字
+                    |  map      //声明或创建map类型关键字
+                    |  chan     //声明或创建通道类型关键字
+                    
+                    --声明复合数据结构的4个关键字--
+                    | struct  //定义结构类型关键字  
+                    | interface //定义接口类型关键字
+                    |  map      //声明或创建map类型关键字
+                    |  chan     //声明或创建通道类型关键字
+                          
+                Operators and punctuation
+                    1.算术运算符
+                        + 加法
+                        - 减法
+                        * 乘法
+                        / 除法
+                        % 取余
+        
+                   2.位运算符
+                        & : 按位与 两个位都为1时，结果才为1 
+                        | : 按位或 两个位都为0时，结果才为0
+                        ^ : 两个位相同为0，相异为1
+                       &^ : 位清空 (AND NOT)
+                        >>: 各二进位全部右移若干位，高位丢弃，低位补0
+                        <<: 各二进位全部左移若干位，高位丢弃，低位补0
+                        
+                    
+                  3.比较运算符
+                        > >= < <= ==!=
+                    
+                  4.括号 
+                        () {} []
+        
+                  5.逻辑运算符  
+                        && || !
+        
+                  6.自增自减操作符 
+                        ++ --
+        
+                  7.其他运算符
+                        : , ; . ... <-
+    """""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""" 
+            Integer literals
+        
+
+
+
+
+    1.Go词法
+        1.1 词法的基本组成要素:
+-------------------------(词法:token,原理)----------------------------------------------
+            1.1.1 token --抽象词法单元
+                理论模型:
+                const
+                {
+                    _token:  iota
+
+                    (情况一:标识符)identifilers: const {
+                            _identifilers: iota 
+                            (标识类型一:)用户自定义标识符: const{
+                                包命:
+                                变量命:
+                                常量名:
+                                函数名:
+                                自定义类型名:
+                                方法名:
+                            }
+                            (识别类型二)预声明标识符const{
+                                keywords :关键字
+                                其他预声明标识符 [内置数据类型标识符号,常量标识符,空白标识符,内置函数]
+                                
+                            }
+                                
+                    }
+
+                    (操作符)oprators:  
+
+                    (分隔符)delimiters:
+
+                    (字面量)literals: const{
+                            整型字面量:
+                            浮点型字面量:
+                            复数类型字面量:
+                            字符串字面量:
+                            字符型字面量:
+                    }         
+                }
+ -------------------------------------------------------------------------------
+
+    2.如何分词? (如何将一个连续字符串,划分成不同的单元?)
+        2.1.要有预先定义好的分隔符号
+        2.2.根据分隔符号将字符串切割成词法单元
+
+
+
+----------------------------------(词法:分隔符)-----------------------------------------------
+    3.Go中的分隔符号的简介:
+        3.1.分隔符不是唯一的,有多种分隔符号
+        
+        3.2.分隔符分类
+            3.2.1 纯分隔符号: 无语法含义,只做为分词标识.
+                 此类别的分隔符号包括: (这种分隔符多个和起来也就算一个)  
+                                        -- 空格
+                                        -- 制表符
+                                        -- 换行符
+                                        -- 回车符
+            3.2.2 操作符号
+                分隔词法单元,并且自己也算词法单元.
+
+          
+           4.2.2 内置数据类型标识符(20个)
+                4.2.2.1 数值(16个)
+                    整型(12个)
+                        byte int8 int16 int32 int64 int
+                        uint8 uint uint16 uint32 uint64 uintptr
+
+                    浮点型
+                        float64 float32
+                    
+                    字符和字符串型
+                        string rune
+
+                    接口型 
+                        error
+
+                    布尔型 
+                        bool
+
+            4.2.3 内置函数(15个)
+                4.2.3.1 make
+                4.2.3.2 new
+                4.2.3.3 len
+                4.2.3.4 cap
+                4.2.3.5 append
+                4.2.3.6 copy
+                4.2.3.7 delete
+                4.2.3.8 panic
+                        有什么用?
+                        panic：
+                            1、内建函数
+                            
+                            2、假如函数F中书写了panic语句，会终止其后要执行的代码，
+                                在panic所在函数F内如果存在要执行的defer函数列表，按照defer的逆序执行
+                            
+                            3、返回函数F的调用者G，在G中，调用函数F语句之后的代码不会执行，
+                                假如函数G中存在要执行的defer函数列表，按照defer的逆序执行，
+                                 这里的defer 有点类似 try-catch-finally 中的 finally
+
+                            4、直到goroutine整个退出，并报告错误
+
+                            作者：小杰的快乐时光
+                            链接：https://www.jianshu.com/p/0cbc97bd33fb
+                            来源：简书
+                            著作权归作者所有。商业转载请联系作者获得授权，非商业转载请注明出处。
+
+                4.2.3.9 recover
+                        有什么用?
+                            
+                4.2.3.10 close
+                4.2.3.11 complex
+                4.2.3.12 real
+                4.2.3.13 image
+                4.2.3.14 Print ?????????? 都是小写?
+                4.2.3.15 Println ????????? 都是小写?
+
+            4.2.4 常量标识符
+                true false
+                iota //在枚举中使用
+                nil  //引用/指针的null值 
+            
+            4.2.5 _ (空白标识符) 
+                做占位符号
+
+    -------------------------------[词法:字面常量]----------------------------------------------------------------
+        整型字面量: 42 0600 0xBad 11234324234234
+        浮点字面量: 0. 72.40 072.40 2.71828 1E6
+        复数类型字面量: 0i 011i 6.2e-11i 
+        字符型字面量: 'a' '本' '\x377' '\000' 'u12e4'
+        字符串字面量: "\n" "\"" "hello,world!"
+
+    -------------------------------[词法:实现分词器]----------------------------------------------------------------
+    猜测:
+        输入: unicode 字符文件.
+        输出: tokens 一堆token
+
+        应该怎么组织 token(最小词法单元这个结构)?
+            
+            源码:
+                tokens.go //实现了前面的一堆分析的情况.
+                token_string.go //一个优化访问的索引结构
+                source.go // go source文本阅读器
+                scanner.go //分词器
+                
+        scanner 结构:{
+          source --> 要有一个文本阅读器
+            mode uint --> 模式
+            nlsemi bool --> 是否将\n 和 EOF 翻译成; 
+
+            //
+
+
+        }
+
+    -------------------------------[词法:作用域]----------------------------------------------------------------
+    6.Block
+        在一个{}内的可空的声明和语句序列.
+        
+    -------------------------------[词法:字面常量]----------------------------------------------------------------
+    -------------------------------[词法:字面常量]----------------------------------------------------------------
+    -------------------------------[词法:字面常量]----------------------------------------------------------------
+    -------------------------------[词法:字面常量]----------------------------------------------------------------
+    -------------------------------[词法:字面常量]----------------------------------------------------------------
+    
+    ----------------------Block------------------------
+    the universe block --> all go src 
+     the package block --> package src 
+        the file block -->  file src 
+the if,for,switch block-->  its own implict block 
+clause in a "switch" or "select" statement acts as an implicit block.
+
+    ----------------------Block------------------------
+    
+   """""""""""""""""""""句子的语法规则"""""""""""""""""
+    Statement = 
+         | Declaration 
+            声明语句
+         | LabeledStmt
+            标签语句
+            --LabeledStmt = Label ":" Statement .
+                            Label = identifier .
+        
+        | SimpleStmt
+            简单句子
+            -- SimpleStmt = EmptyStmt|ExpressionStmt|SendStmt|IncDecStmt|Assignment|ShortVarDecl
+                    EmptyStmt = .
+
+         | GoStmt
+            Go语句
+         | ReturnStmt
+            返回语句
+         | BreakStmt
+            break语句
+         | ContinueStmt
+            继续语句
+         | GotoStmt
+            跳转语句
+         | FallthroughStmt
+
+         | Block
+            块语句
+         | IfStmt
+            if分支语句
+         | SwitchStmt
+            switch 语句
+         | SelectStmt
+            选择语句
+         | ForStmt
+            for循环语句
+         | DeferStmt
+            延迟语句
+        ====================================================
+
+    ----------------------句子语法规则 须知------------
+        Statement control execution 原则:语句控制执行   
+    
+        分类:
+            1 是否中断代码块中正常的控制流
+                1.1 A terminating Statement(终结语句)
+                    1.1.1   A "return" or "goto" Statement 
+                    1.1.2   A call to the built-in function panic (恐慌函数中的处理)
+                    1.1.3   A block in which the statement list ends in a terminating statement 
+                            A statement list ends in a terminating statement 
+                            if the list is not empty and its final non-empty statement is terminating.
+                   
+                   1.1.4   An "if" statement in which:(单if语句)
+                                the "else" branch is present
+                                both branches are terminating statements.
+
+                    1.1.5   A "for" statement in which:(死循环)
+                                there are no "break" referring to the "for" statement,
+                                and the loop condition is absent,
+                                and the "for" statement does not a range clause
+                    
+                    1.1.6   A "select" statement in which:(没点毛病想不出的写法)
+                                there are no "break" statements referring to the "select" statement, 
+                                and the statement lists in each case, including the default if present,
+                                end in a terminating statement.
+                    
+                    1.1.7  A labeled statement labeling a terminating statement.(标志,标记了终结语句)
+
+                    1.1.8  
+                                
+        
+
+
+
+
+    ----------------------句子语法规则 须知------------- 
+
+   """""""""""""""""""声明的语法规则""""""""""""""""""
+    TopLevelDecl = Declaration|FunctionDecl|MethodDecl
+        FunctionDecl =
+          MethodDecl =
+         Declaration = constDecl|TypeDecl|VarDecl
+                        =
+              constDecl = "const" (ConstSpec|"("{ConstSpec";"}")"))
+                    ConstSpec =IdentifierList[[Type] "=" ExpressionList]]
+                        IdentifierList = identifier { "," identifier } 
+                            identifier = letter { letter | unicode_digit }
+                                 letter        = unicode_letter | "_" .
+                                 decimal_digit = "0" … "9" .
+                                 binary_digit  = "0" | "1" .
+                                 octal_digit   = "0" … "7" .
+                                 hex_digit     = "0" … "9" | "A" … "F" | "a" … "f" .
+                                    newline        = /* the Unicode code point U+000A */ .
+                                    unicode_char   = /* an arbitrary Unicode code point except newline */ .
+                                    unicode_letter = /* a Unicode code point categorized as "Letter" */ .
+                                    unicode_digit  = /* a Unicode code point categorized as "Number, decimal digit" */ .
+
+                        ExpressionList = Expression { "," Expression } 
+
+     """""""""""""""""""声明语法规则的相关demo""""""""""""""""""
+     1.identifier = letter{ letter|unicode_digit}
+        |a
+        |_x9
+        |ThisVariableIsExported
+        |αβ
+        ===================================
+     2.IdentifierList=identifier{","identifier}
+        |a,a
+        |_x9,xfads
+        |ThisVariableIsExported
+        |αβ,fasdhkjfhkj
+        =================================== 
+     3. Expression
+
+    ----------------------Declare and scope------------ 
+    注意:
+        1.声明的标识的作用区域取决与和它绑定的constant, type, variable, function, label, or package的 block的大小
+            1.1 predeclared identifier is the universe block的大小
+               | Types:
+	           |     any bool byte comparable
+	           |     complex64 complex128 error float32 float64
+	           |    int int8 int16 int32 int64 rune string
+	           |     uint uint8 uint16 uint32 uint64 uintptr
+               | 
+               |Constants:
+	           |true false iota
+               | 
+               |Zerovalue:
+	           |     nil
+               |
+               |Functions:
+	           |append cap close complex copy delete imag len
+	           |      make new panic print println real recover
+               ===========================================================
+            1.2 如果想在其他包调用不同包的标识符
+                1.2.1 这个标识首字母大写或
+                     the identifier is declared in the package block or it is a field name or method name.
+                                                                       
+                1.2.2
+
+
+
+    ----------------------Declare and scope------------ 
+    
+    ----------------------Block------------------------
+    ----------------------Block------------------------
+    ----------------------Block------------------------
+    ----------------------Block------------------------
+    ----------------------Block------------------------
+    ----------------------Block------------------------
+    ----------------------Block------------------------
+    ----------------------Block------------------------
+    ----------------------Block------------------------
+    ----------------------Block------------------------
+    ----------------------Block------------------------
+    ----------------------Block------------------------
+    ----------------------Block------------------------
+    ----------------------Block------------------------
+    ----------------------Block------------------------
+    ----------------------Block------------------------
+    ----------------------Block------------------------
+    ----------------------Block------------------------
+    ----------------------Block------------------------
+    ----------------------Block------------------------
+    ----------------------Block------------------------
+    ----------------------Block------------------------
+    ----------------------Block------------------------
+    ----------------------Block------------------------
+    ----------------------Block------------------------
+    ----------------------Block------------------------
+    ----------------------Block------------------------
+    ----------------------Block------------------------
+    ----------------------Block------------------------
+    ----------------------Block------------------------
+    ----------------------Block------------------------
+    ----------------------Block------------------------
+    ----------------------Block------------------------
+    ----------------------Block------------------------
+
+
+
+
+
+        StatementList = { Statement ";" } .
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        1 Declartions and scope:声明和作用域
+            1.1 声明需知:
+               1.1.1 声明的作用是把非空标识符绑定到如下之一:
+                        constant|type|type parameter|variable|function 
+
+               1.1.2 每一个标识符都应该在程序中声明,在同一个块中不能声明任何标识两次,
+                     没有一个标识符declared in both the file and package block.
+                    
+               1.1.3  _ (空标识 不需要声明,它也不会产生binding的行为)
+            
+               1.1.4  init这个标识符 留给 init函数用 
+            
+            1.2 
+            
+                            
+
+
+
+    // Declarations
+    // list parses a possibly empty, sep-separated list of elements, optionally
+    // followed by sep, and closed by close (or EOF). sep must be one of _Comma
+    // or _Semi, and close must be one of _Rparen, _Rbrace, or _Rbrack.
+    // For each list element, f is called. Specifically, unless we're at close
+    // (or EOF), f is called at least once. After f returns true, no more list
+    // elements are accepted. list returns the position of the closing token.
+    // list = [ f { sep f } [sep] ] close .
+
+
+    // ImportSpec = [ "." | PackageName ] ImportPath .
+    // ImportPath = string_lit .
+
+
+// ConstSpec = IdentifierList [ [ Type ] "=" ExpressionList ] .
+// VarSpec = IdentifierList ( Type [ "=" ExpressionList ] | "=" ExpressionList ) .
+// TypeSpec = identifier [ TypeParams ] [ "=" ] Type .
+
+
+
+// FunctionDecl = "func" FunctionName [ TypeParams ] ( Function | Signature ) .
+// FunctionName = identifier .
+// Function     = Signature FunctionBody .
+// MethodDecl   = "func" Receiver MethodName ( Function | Signature ) .
+// Receiver     = Parameters .
+
+
+// Expression = UnaryExpr | Expression binary_op Expression .
+// UnaryExpr = PrimaryExpr | unary_op UnaryExpr .
+
+// Operand     = Literal | OperandName | MethodExpr | "(" Expression ")" .
+// Literal     = BasicLit | CompositeLit | FunctionLit .
+// BasicLit    = int_lit | float_lit | imaginary_lit | rune_lit | string_lit .
+// OperandName = identifier | QualifiedIdent.
+
+
+// pexpr parses a PrimaryExpr.
+//
+//	PrimaryExpr =
+//		Operand |
+//		Conversion |
+//		PrimaryExpr Selector |
+//		PrimaryExpr Index |
+//		PrimaryExpr Slice |
+//		PrimaryExpr TypeAssertion |
+//		PrimaryExpr Arguments .
+//
+//	Selector       = "." identifier .
+//	Index          = "[" Expression "]" .
+//	Slice          = "[" ( [ Expression ] ":" [ Expression ] ) |
+//	                     ( [ Expression ] ":" Expression ":" Expression )
+//	                 "]" .
+//	TypeAssertion  = "." "(" Type ")" .
+//	Arguments      = "(" [ ( ExpressionList | Type [ "," ExpressionList ] ) [ "..." ] [ "," ] ] ")" .
+
+// Element = Expression | LiteralValue .
+// LiteralValue = "{" [ ElementList [ "," ] ] "}" .
+
+// typeOrNil is like type_ but it returns nil if there was no type
+// instead of reporting an error.
+//
+//	Type     = TypeName | TypeLit | "(" Type ")" .
+//	TypeName = identifier | QualifiedIdent .
+//	TypeLit  = ArrayType | StructType | PointerType | FunctionType | InterfaceType |
+//		      SliceType | MapType | Channel_Type .
+
+// If context != "", type parameters are not permitted.
+
+// "[" has already been consumed, and pos is its position.
+// If len != nil it is the already consumed array length.
+
+// "[" and "]" have already been consumed, and pos is the position of "[".
+// StructType = "struct" "{" { FieldDecl ";" } "}" .
+// InterfaceType = "interface" "{" { ( MethodDecl | EmbeddedElem | TypeList ) ";" } "}" .
+// TypeList      = "type" Type { "," Type } .
+// Result = Parameters | Type .
+// FieldDecl      = (IdentifierList Type | AnonymousField) [ Tag ] .
+// AnonymousField = [ "*" ] TypeName .
+// Tag            = string_lit .
+// MethodSpec        = MethodName Signature | InterfaceTypeName .
+// MethodName        = identifier .
+// InterfaceTypeName = TypeName .
+// EmbeddedElem = MethodSpec | EmbeddedTerm { "|" EmbeddedTerm } .
+// EmbeddedTerm = [ "~" ] Type .
+// ParameterDecl = [ IdentifierList ] [ "..." ] Type .
+
+// Parameters    = "(" [ ParameterList [ "," ] ] ")" .
+// ParameterList = ParameterDecl { "," ParameterDecl } .
+// "(" or "[" has already been consumed.
+// If name != nil, it is the first name after "(" or "[".
+// If typ != nil, name must be != nil, and (name, typ) is the first field in the list.
+// In the result list, either all fields have a name, or no field has a name.
+
+// ----------------------------------------------------------------------------
+// Statements
+
+// SimpleStmt = EmptyStmt | ExpressionStmt | SendStmt | IncDecStmt | Assignment | ShortVarDecl .
+
+// stmtOrNil parses a statement if one is present, or else returns nil.
+//
+//	Statement =
+//		Declaration | LabeledStmt | SimpleStmt |
+//		GoStmt | ReturnStmt | BreakStmt | ContinueStmt | GotoStmt |
+//		FallthroughStmt | Block | IfStmt | SwitchStmt | SelectStmt | ForStmt |
+//		DeferStmt .
+// StatementList = { Statement ";" } .
+
+// argList parses a possibly empty, comma-separated list of arguments,
+// optionally followed by a comma (if not empty), and closed by ")".
+// The last argument may be followed by "...".
+//
+// argList = [ arg { "," arg } [ "..." ] [ "," ] ] ")" .
+
+// IdentifierList = identifier { "," identifier } .
+// The first name must be provided.
+// ExpressionList = Expression { "," Expression } .
+
+// typeList parses a non-empty, comma-separated list of types,
+// optionally followed by a comma. If strict is set to false,
+// the first element may also be a (non-type) expression.
+// If there is more than one argument, the result is a *ListExpr.
+// The comma result indicates whether there was a (separating or
+// trailing) comma.
+//
+// typeList = arg { "," arg } [ "," ] .

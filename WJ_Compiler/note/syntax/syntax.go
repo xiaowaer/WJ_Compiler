@@ -75,8 +75,10 @@ type PragmaHandler func(pos Pos, blank bool, text string, current Pragma) Pragma
 // error, and the returned syntax tree is nil.
 //
 // If pragh != nil, it is called with each pragma encountered.
+//解析文件
 func Parse(base *PosBase, src io.Reader, errh ErrorHandler, pragh PragmaHandler, mode Mode) (_ *File, first error) {
-	defer func() {
+    //异常处理
+    defer func() {
 		if p := recover(); p != nil {
 			if err, ok := p.(Error); ok {
 				first = err
@@ -85,16 +87,19 @@ func Parse(base *PosBase, src io.Reader, errh ErrorHandler, pragh PragmaHandler,
 			panic(p)
 		}
 	}()
-
+    // 申请一个解析器
 	var p parser
+    //解析器初始化
 	p.init(base, src, errh, pragh, mode)
-	p.next()
+	//解析器调用内部分词器,获取第一个字符
+    p.next()
 	return p.fileOrNil(), p.first
 }
 
 // ParseFile behaves like Parse but it reads the source from the named file.
+
 func ParseFile(filename string, errh ErrorHandler, pragh PragmaHandler, mode Mode) (*File, error) {
-	f, err := os.Open(filename)
+f, err := os.Open(filename)
 	if err != nil {
 		if errh != nil {
 			errh(err)
@@ -102,5 +107,6 @@ func ParseFile(filename string, errh ErrorHandler, pragh PragmaHandler, mode Mod
 		return nil, err
 	}
 	defer f.Close()
+    //NewFileBase ,returns a new PosBase for the given filename 
 	return Parse(NewFileBase(filename), f, errh, pragh, mode)
 }

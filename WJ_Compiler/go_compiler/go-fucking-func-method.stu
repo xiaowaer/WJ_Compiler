@@ -1,0 +1,32 @@
+参考地址：
+    https://go.dev/ref/spec
+
+title:cnm 的 go 语言 文件顶层语法之函数语法和方法语法系列
+      cnm 的函数声明语法：
+        0.1 经验之谈
+                函数声明的作用: 可以为给定函数 binding 一个id，也就是func name 
+                以后用这个id 就可以在它适用的scope下调用了，
+                        => 什么函数调用？ 我叫了你的名字，你答应了我，这就是函数调用
+
+        1.enbf 函数声明产生式的大致了解:
+            FunctionDecl = "func" FunctionName [ TypeParameters ] Signature [ FunctionBody ] .
+            翻译：
+                函数声明：
+                    func 函数id [TypeParameters] Signature [FunctionBody]
+                    看上去就很坑，
+                    [TypeParameters] 和 [FunctionBody] 是可选的，0到一次,就是可以没有。
+                    
+            FunctionName = identifier .
+            翻译：函数名是一个标识符号
+            
+            FunctionBody = Block.   
+            翻译：函数体是一个块，函数体里面可以放语句列表。
+                  也就是说函数体内部是一个封闭的作用域。
+                
+      2.
+                  
+拓展的高级话题:
+            什么是函数是一等公民?   
+                `                
+            
+            什么是函数式编程?

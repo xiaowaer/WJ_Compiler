@@ -6,9 +6,9 @@ package syntax
 
 import (
 	"bytes"
+	"example/syntax/testenv"
 	"flag"
 	"fmt"
-	"internal/testenv"
 	"io/ioutil"
 	"path/filepath"
 	"regexp"
@@ -67,7 +67,8 @@ var (
 // 测试文件分析的单元测试 
 // 核心函数ParseFile
 func TestParse(t *testing.T) {
-	ParseFile(*src_, func(err error) { t.Error(err) }, nil, 0)
+    ParseFile("./mysyntaxtest.go", func(err error){t.Error(err)}, nil,0)
+    //	ParseFile(*src_, func(err error) { t.Error(err) }, nil, 0)
 }
 
 // 测试 verify 模式下的分析

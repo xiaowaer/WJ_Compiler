@@ -3,18 +3,37 @@ package syntax
 import (
 	"fmt"
 )
+type nmgo struct{
+   Mytest 
+}
 type Mytest struct{
 fafas string
 asdf string
 aaa[64] token
 tok token
 }
+
+
 var q[128] token
 
 
 func myhash(s []byte) uint {
 	return (uint(s[0])<<4 ^ uint(s[1]) + uint(len(s))) & uint(len(q)-1)
 }
+
+         
+         type afd  struct{
+              Fuck 
+            }
+            
+            type Fuck struct{
+                ss string 
+            }
+
+            func (fucking *Fuck) aa()  {
+                var  a  Fuck
+                a.ss ="fdaskhjfhkas"
+            }
 
 // func init(){
 // 	// populate keywordMap

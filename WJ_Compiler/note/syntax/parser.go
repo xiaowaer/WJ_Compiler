@@ -16,21 +16,29 @@ const trace = false
 
 type parser struct {
 	file  *PosBase
+    //文件
 	errh  ErrorHandler
+    //错误处理
 	mode  Mode
+    //解析模式
 	pragh PragmaHandler
+    //
 	scanner
-
+    //分词器
 	base   *PosBase // current position base
+    //记录现处理指针
 	first  error    // first error encountered
+    //第一个错误点 
 	errcnt int      // number of errors encountered
-	pragma Pragma   // pragmas
-
+	//错误点计数
+    pragma Pragma   // pragmas
 	fnest  int    // function nesting level (for error handling)
 	xnest  int    // expression nesting level (for complit ambiguity resolution)
-	indent []byte // tracing support
+    indent []byte // tracing support
+    //追踪
 }
 
+// 结构内部初始化
 func (p *parser) init(file *PosBase, r io.Reader, errh ErrorHandler, pragh PragmaHandler, mode Mode) {
 	p.file = file
 	p.errh = errh
@@ -86,6 +94,7 @@ func (p *parser) init(file *PosBase, r io.Reader, errh ErrorHandler, pragh Pragm
 	p.xnest = 0
 	p.indent = nil
 }
+
 
 // takePragma returns the current parsed pragmas
 // and clears them from the parser state.
@@ -155,6 +164,7 @@ func (p *parser) updateBase(pos Pos, tline, tcol uint, text string) {
 	p.base = NewLineBase(pos, filename, trimmed, line, col)
 }
 
+//注释文本
 func commentText(s string) string {
 	if s[:2] == "/*" {
 		return s[2 : len(s)-2] // lop off /* and */
@@ -169,6 +179,7 @@ func commentText(s string) string {
 	return s[2:i] // lop off //, and \r at end, if any
 }
 
+//
 func trailingDigits(text string) (uint, uint, bool) {
 	// Want to use LastIndexByte below but it's not defined in Go1.4 and bootstrap fails.
 	i := strings.LastIndex(text, ":") // look from right (Windows filenames may contain ':')
@@ -180,6 +191,7 @@ func trailingDigits(text string) (uint, uint, bool) {
 	return uint(i + 1), uint(n), err == nil
 }
 
+// 获取词汇
 func (p *parser) got(tok token) bool {
 	if p.tok == tok {
 		p.next()
@@ -188,12 +200,14 @@ func (p *parser) got(tok token) bool {
 	return false
 }
 
+
 func (p *parser) want(tok token) {
 	if !p.got(tok) {
 		p.syntaxError("expected " + tokstring(tok))
 		p.advance()
 	}
 }
+
 
 // gotAssign is like got(_Assign) but it also accepts ":="
 // (and reports an error) for better parser error recovery.
@@ -217,6 +231,7 @@ func (p *parser) posAt(line, col uint) Pos {
 	return MakePos(p.base, line, col)
 }
 
+//
 // error reports an error at the given position.
 func (p *parser) errorAt(pos Pos, msg string) {
 	err := Error{pos, msg}
@@ -297,8 +312,11 @@ func (p *parser) error(msg string)       { p.errorAt(p.pos(), msg) }
 func (p *parser) syntaxError(msg string) { p.syntaxErrorAt(p.pos(), msg) }
 
 // The stopset contains keywords that start a statement.
+// 暂停集合 包含语句开始的关键字
 // They are good synchronization points in case of syntax
+
 // errors and (usually) shouldn't be skipped over.
+// 获取到不同的uint 64 值 
 const stopset uint64 = 1<<_Break |
 	1<<_Const |
 	1<<_Continue |
@@ -315,16 +333,22 @@ const stopset uint64 = 1<<_Break |
 	1<<_Var
 
 // Advance consumes tokens until it finds a token of the stopset or followlist.
+
 // The stopset is only considered if we are inside a function (p.fnest > 0).
+// stopset 只考虑在函数内部的情况
 // The followlist is the list of valid tokens that can follow a production;
+//  允许列表是一个产生式可以允许的词汇组合
 // if it is empty, exactly one (non-EOF) token is consumed to ensure progress.
+
 func (p *parser) advance(followlist ...token) {
 	if trace {
 		p.print(fmt.Sprintf("advance %s", followlist))
 	}
 
 	// compute follow set
+    //计算follow set 
 	// (not speed critical, advance is only called in error situations)
+    // 不需要很严格,只有在错误返回的时候调用
 	var followset uint64 = 1 << _EOF // don't skip over EOF
 	if len(followlist) > 0 {
 		if p.fnest > 0 {
@@ -351,6 +375,7 @@ func (p *parser) advance(followlist ...token) {
 }
 
 // usage: defer p.trace(msg)()
+//追踪
 func (p *parser) trace(msg string) func() {
 	p.print(msg + " (")
 	const tab = ". "
@@ -364,36 +389,53 @@ func (p *parser) trace(msg string) func() {
 	}
 }
 
+//打印
 func (p *parser) print(msg string) {
 	fmt.Printf("%5d: %s%s\n", p.line, p.indent, msg)
 }
 
 // ----------------------------------------------------------------------------
 // Package files
-//
+// 包文件
 // Parse methods are annotated with matching Go productions as appropriate.
+//  解析方法会根据需要使用匹配的 Go 产生式进行注释。
 // The annotations are intended as guidelines only since a single Go grammar
 // rule may be covered by multiple parse methods and vice versa.
-//
+// 注释仅用作指导，因为单个 Go 语法规则可能被多个解析方法覆盖，反之亦然。
 // Excluding methods returning slices, parse methods named xOrNil may return
 // nil; all others are expected to return a valid non-nil node.
-
+//排除返回切片的方法，名为 xOrNil 的解析方法可能返回 nil；
+//所有其他人都应该返回一个有效的非零节点。
 // SourceFile = PackageClause ";" { ImportDecl ";" } { TopLevelDecl ";" } .
 func (p *parser) fileOrNil() *File {
 	if trace {
 		defer p.trace("file")()
 	}
 
+    // // package PkgName; DeclList[0], DeclList[1], ...
+// type File struct {
+	// Pragma   Pragma
+	// PkgName  *Name
+	// DeclList []Decl
+	// EOF      Pos
+	// node
+// } --nodes.go 35
+
+
 	f := new(File)
 	f.pos = p.pos()
 
 	// PackageClause
+    //package 语句必须是第一句
 	if !p.got(_Package) {
 		p.syntaxError("package statement must be first")
 		return nil
 	}
+    // 好像是汇编指令
 	f.Pragma = p.takePragma()
-	f.PkgName = p.name()
+	//包名
+    //p.name 会获取到下一个词 就是_Import
+    f.PkgName = p.name()
 	p.want(_Semi)
 
 	// don't bother continuing if package clause has errors
@@ -404,15 +446,22 @@ func (p *parser) fileOrNil() *File {
 	// Accept import declarations anywhere for error tolerance, but complain.
 	// { ( ImportDecl | TopLevelDecl ) ";" }
 	prev := _Import
+    // 没到终结符之前都会一直循环
 	for p.tok != _EOF {
 		if p.tok == _Import && prev != _Import {
-			p.syntaxError("imports must appear before other declarations")
+			// import 必须出现在其他声明之前 
+            p.syntaxError("imports must appear before other declarations")
 		}
+        // 
 		prev = p.tok
-
+        
+        // 
 		switch p.tok {
+        // 如果 是 tok=_Import 的情况
 		case _Import:
+            // 获得下一个词 
 			p.next()
+            // AST的声明列表 =  语法解析器追加组( 原始声明列表, 语法分析器内置的导入声明) 
 			f.DeclList = p.appendGroup(f.DeclList, p.importDecl)
 
 		case _Const:
@@ -467,8 +516,7 @@ func isEmptyFuncDecl(dcl Decl) bool {
 }
 
 // ----------------------------------------------------------------------------
-// Declarations
-
+// Declarations (声明部分)
 // list parses a possibly empty, sep-separated list of elements, optionally
 // followed by sep, and closed by close (or EOF). sep must be one of _Comma
 // or _Semi, and close must be one of _Rparen, _Rbrace, or _Rbrack.
@@ -529,6 +577,26 @@ func (p *parser) importDecl(group *Group) Decl {
 		defer p.trace("importDecl")()
 	}
 
+
+
+	//              Path
+	// LocalPkgName Path
+    //ImportDecl 语法节点
+
+//     ImportDecl struct {
+//         // 
+// 		Group        *Group // nil means not part of a group
+// 		//
+//         Pragma       Pragma
+// 		// 本地包名词
+//         LocalPkgName *Name     // including "."; nil means no rename present
+// 		//路径
+//         Path         *BasicLit // Path.Bad || Path.Kind == StringLit; nil means no path
+		//实现了声明
+//        decl
+//}
+
+
 	d := new(ImportDecl)
 	d.pos = p.pos()
 	d.Group = group
@@ -555,6 +623,8 @@ func (p *parser) importDecl(group *Group) Decl {
 
 	return d
 }
+
+
 
 // ConstSpec = IdentifierList [ [ Type ] "=" ExpressionList ] .
 func (p *parser) constDecl(group *Group) Decl {
@@ -729,6 +799,7 @@ func isTypeElem(x Expr) bool {
 	return false
 }
 
+
 // VarSpec = IdentifierList ( Type [ "=" ExpressionList ] | "=" ExpressionList ) .
 func (p *parser) varDecl(group *Group) Decl {
 	if trace {
@@ -752,6 +823,8 @@ func (p *parser) varDecl(group *Group) Decl {
 
 	return d
 }
+
+
 
 // FunctionDecl = "func" FunctionName [ TypeParams ] ( Function | Signature ) .
 // FunctionName = identifier .
@@ -816,6 +889,8 @@ func (p *parser) funcBody() *BlockStmt {
 
 	return body
 }
+
+
 
 // ----------------------------------------------------------------------------
 // Expressions
@@ -2669,6 +2744,7 @@ func (p *parser) name() *Name {
 
 	if p.tok == _Name {
 		n := NewName(p.pos(), p.lit)
+        // 获取下一个词汇
 		p.next()
 		return n
 	}

@@ -75,6 +75,7 @@ func (s *source) init(in io.Reader, errh func(line, col uint, msg string)) {
 }
 
 // starting points for line and column numbers
+//开始指向文件中的位置
 const linebase = 1
 const colbase = 1
 
@@ -214,7 +215,7 @@ func (s *source) fill() {
 	s.buf[s.e] = sentinel
 	s.ioerr = io.ErrNoProgress
 }
-
+// 字符缓冲大小,最大1M
 // nextSize returns the next bigger size for a buffer of a given size.
 func nextSize(size int) int {
 	const min = 4 << 10 // 4K: minimum buffer size

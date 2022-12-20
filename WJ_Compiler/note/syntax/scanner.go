@@ -70,15 +70,21 @@ func (s *scanner) errorAtf(offset int, format string, args ...interface{}) {
 
 // setLit sets the scanner state for a recognized _Literal token.
 func (s *scanner) setLit(kind LitKind, ok bool) {
-	s.nlsemi = true
+	//换行补分号
+    s.nlsemi = true
+    // tok值等于_Literal
 	s.tok = _Literal
-	s.lit = string(s.segment())
-	s.bad = !ok
-	s.kind = kind
+	//lit的具体值
+    s.lit = string(s.segment())
+	
+    s.bad = !ok
+	//类型
+    s.kind = kind
 }
 
+// 核心方法 next
 // next advances the scanner by reading the next token.
-//
+//  
 // If a read, source encoding, or lexical error occurs, next calls
 // the installed error handler with the respective error position
 // and message. The error message is guaranteed to be non-empty and
@@ -404,24 +410,32 @@ func (s *scanner) ident() {
 	}
 
 	// possibly a keyword
-    //
+    //可能是关键词
+    //取出buf中对应的值
 	lit := s.segment()
 	if len(lit) >= 2 {
+        //去找keywordMap,看索引是否命中,命中就返回对应的tok
 		if tok := keywordMap[hash(lit)]; tok != 0 && tokStrFast(tok) == string(lit) {
-			s.nlsemi = contains(1<<_Break|1<<_Continue|1<<_Fallthrough|1<<_Return, tok)
-			s.tok = tok
+			// ?
+            s.nlsemi = contains(1<<_Break|1<<_Continue|1<<_Fallthrough|1<<_Return, tok)
+			//返回关键词 tok
+            s.tok = tok
 			return
 		}
 	}
-
+    //不命中缓存关键字map的就是,字面量
+    // 换行自动补全分号
 	s.nlsemi = true
+    // 字符串字面量的值
 	s.lit = string(lit)
+    // 标识符
 	s.tok = _Name
 }
 
 // tokStrFast is a faster version of token.String, which assumes that tok
 // is one of the valid tokens - and can thus skip bounds checks.
 func tokStrFast(tok token) string {
+    // 返回对应token name
 	return _token_name[_token_index[tok-1]:_token_index[tok]]
 }
 
@@ -449,10 +463,12 @@ func hash(s []byte) uint {
 	return (uint(s[0])<<4 ^ uint(s[1]) + uint(len(s))) & uint(len(keywordMap)-1)
 }
 
+// 1<<6 =64 
 var keywordMap [1 << 6]token // size must be power of two
 
 func init() {
 	// populate keywordMap
+    // 初始化keywordMap,默认执行,不可调用.
 	for tok := _Break; tok <= _Var; tok++ {
 		h := hash([]byte(tok.String()))
 		if keywordMap[h] != 0 {
@@ -703,16 +719,20 @@ func (s *scanner) rune() {
 	s.setLit(RuneLit, ok)
 }
 
+// "" 字符串分词
 func (s *scanner) stdString() {
 	ok := true
+    // 获取 \" 的下一个字母
 	s.nextch()
 
 	for {
 		if s.ch == '"' {
+            // 再次 \"  获取下一个字符,跳出循环 
 			s.nextch()
 			break
 		}
 		if s.ch == '\\' {
+            //  遇到\\的情况,继续
 			s.nextch()
 			if !s.escape('"') {
 				ok = false
@@ -720,18 +740,21 @@ func (s *scanner) stdString() {
 			continue
 		}
 		if s.ch == '\n' {
+            //  "\n" ,不能出现换行 
 			s.errorf("newline in string")
 			ok = false
 			break
 		}
 		if s.ch < 0 {
+            // ch<0 错误退出.
 			s.errorAtf(0, "string not terminated")
 			ok = false
 			break
 		}
+        // 一直获取后面的字符 
 		s.nextch()
 	}
-
+    // 设置字符串字面量
 	s.setLit(StringLit, ok)
 }
 

@@ -1,0 +1,120 @@
+TITLE:  golang spec
+    -----------------------what is go grammer----------------
+    1.0 go 语法本质：
+        一种变种的EBNF (拓展 巴科斯-瑙尔范式)
+        
+        1.0.1 总体概述：
+            Syntax      = { Production } .
+            翻译：go 语法 是产生式的集合
+            
+            Production  = production_name "=" [ Expression ] "." .
+            翻译：产生式可以表达为  产生式名 = 至多一个表达式
+
+            Expression  = Term { "|" Term } .
+            翻译： 表达包含至少一个 最终语句
+            
+            Term        = Factor { Factor } .
+            翻译： 最终语句 至少一个因子 
+            
+            Factor      = production_name | token [ "…" token ] | Group | Option | Repetition .
+            翻译：因子 可能是产生式名|词 | 组合式 | 可选式 | 重复式
+
+            Group       = "(" Expression ")" .
+            
+            Option      = "[" Expression "]" .
+            
+            Repetition  = "{" Expression "}" .
+
+            优先级从小到大：
+                |   alternation
+                ()  grouping
+                []  option (0 or 1 times)
+                {}  repetition (0 to n times)
+                            
+    1.1 go 语法的层级关系
+    
+    限制性语法：
+        
+    1.1.1 基本语法的层级关系：
+            
+-------------------------------source file ------------------------------------------------------
+            但是为了人类协同开发，不可能所有代码都是写在一个大block里面，
+            协同开发需要把代码切片成包，包再切割成文件。
+            
+            所以就有了source 文件的规范写法。
+
+            SourceFile = PackageClause ";" { ImportDecl ";" } { TopLevelDecl ";" } .
+            翻译：
+                一个源文件，
+                1.首先要声明包路径，
+                2.然后是 要声明需要导入的第三方包
+                3. 就是ToplevelDecl的集合
+                    -- 
+                    3.1 变量声明
+                    3.2 常量声明
+                    3.3 类型声明
+                    3.4 函数声明
+                    3.5 方法声明
+                    
+            //一眼就能看懂          
+            PackageClause  = "package" PackageName .
+            PackageName    = identifier .
+            
+            // 一眼就能看懂
+            ImportDecl       = "import" ( ImportSpec | "(" { ImportSpec ";" } ")" ) .
+            ImportSpec       = [ "." | PackageName ] ImportPath .
+            ImportPath       = string_lit .
+            
+            //这个可以开始看下
+            Declaration   = ConstDecl | TypeDecl | VarDecl .
+            // 顶层声明
+            TopLevelDecl  = 
+                              Declaration  = 
+                                        ConstDecl
+                                      | TypeDecl
+                                      | VarDecl
+                            | FunctionDecl    
+                            | MethodDecl .
+
+            FunctionDecl --> go-fucking-func-method.stu
+
+           重要：toplevel 才有函数声明和方法声明， go没有结构内部的函数声明，
+                 一个文件中可以有多个平行结构,别并列定义它们内部的方法。
+
+------------------------------------block ---------------------------------------------------
+            非TopLevel {} 的代码 
+            Block =  "{
+                StatementList = {
+                    Statement = 
+	                      Declaration =  
+                              ConstDecl 
+                             | TypeDecl 
+                             | VarDecl .
+                        | LabeledStmt 
+                        | SimpleStmt =
+                               EmptyStmt 
+                             | ExpressionStmt 
+                             | SendStmt 
+                             | IncDecStmt 
+                             | Assignment 
+                             | ShortVarDecl 
+                        | GoStmt 
+                        | ReturnStmt 
+                        | BreakStmt 
+                        | ContinueStmt 
+                        | GotoStmt 
+                        | FallthroughStmt 
+                        | Block 
+                        | IfStmt 
+                        | SwitchStmt 
+                        | SelectStmt 
+                        | ForStmt 
+                        |DeferStmt .
+                    ";"
+                                 }
+                     "}"
+            
+
+
+
+

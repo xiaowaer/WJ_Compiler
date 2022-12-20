@@ -4,26 +4,48 @@
 
 package syntax
 
+// Syntax ={ Production }
+// go 语法是产生式的集合
+// Production = production_name "=" "[ Expression]" "."
+// 产生式格式:  xxx(production_name) =  表达式
+// Expresion = Term{"|" Term}
+// 一个或多个终结符的集合组成
+// Term = Factor { Factor}
+// 一个或多个因子组成
+//Factor= production_name | token [ "…" token ] | Group | Option | Repetition .
+// Group       = "(" Expression ")" .
+// Option      = "[" Expression "]" .
+// Repetition  = "{" Expression "}" .
+
 // ----------------------------------------------------------------------------
 // Nodes
 
 type Node interface {
-	// Pos() returns the position associated with the node as follows:
+    //抽象语法树节点
+	// Pos() returns the position associated with the node as follows:\
+    //节点关联位置
 	// 1) The position of a node representing a terminal syntax production
 	//    (Name, BasicLit, etc.) is the position of the respective production
 	//    in the source.
+    //  产生式在源代码中的位置, 代表的是 terminal syntax production 
+
 	// 2) The position of a node representing a non-terminal production
 	//    (IndexExpr, IfStmt, etc.) is the position of a token uniquely
 	//    associated with that production; usually the left-most one
 	//    ('[' for IndexExpr, 'if' for IfStmt, etc.)
+    //  非终端产生式 的话则是最走边括号的位置.
+
 	Pos() Pos
 	aNode()
 }
 
 type node struct {
 	// commented out for now since not yet used
+    //这个注释的是不再使用的了
 	// doc  *Comment // nil means no comment(s) attached
+    // doc *Comment 代表没有注释出现
 	pos Pos
+
 }
 
 func (n *node) Pos() Pos { return n.pos }
@@ -34,17 +56,28 @@ func (*node) aNode()     {}
 
 // package PkgName; DeclList[0], DeclList[1], ...
 type File struct {
+    // ast 解析树的根节点
+
+    //指令
 	Pragma   Pragma
+    //包名
 	PkgName  *Name
+    // 声明列表
 	DeclList []Decl
+    //结束位置
 	EOF      Pos
+    //组合了节点,就像继承才不多的用法.
 	node
 }
 
 // ----------------------------------------------------------------------------
 // Declarations
+//一堆结构体
+//Declaration   = ConstDecl | TypeDecl | VarDecl .
+//TopLevelDecl  = Declaration | FunctionDecl | MethodDecl .
 
 type (
+    // Decl 声明语法节点
 	Decl interface {
 		Node
 		aDecl()
@@ -52,47 +85,73 @@ type (
 
 	//              Path
 	// LocalPkgName Path
+    //ImportDecl 语法节点
 	ImportDecl struct {
+        // 
 		Group        *Group // nil means not part of a group
-		Pragma       Pragma
-		LocalPkgName *Name     // including "."; nil means no rename present
-		Path         *BasicLit // Path.Bad || Path.Kind == StringLit; nil means no path
-		decl
+		//
+        Pragma       Pragma
+		// 本地包名词
+        LocalPkgName *Name     // including "."; nil means no rename present
+		//路径
+        Path         *BasicLit // Path.Bad || Path.Kind == StringLit; nil means no path
+		//实现了声明
+        decl
 	}
 
 	// NameList
 	// NameList      = Values
 	// NameList Type = Values
+
+    //常量声明
 	ConstDecl struct {
+        
 		Group    *Group // nil means not part of a group
-		Pragma   Pragma
-		NameList []*Name
-		Type     Expr // nil means no type
-		Values   Expr // nil means no values
-		decl
+		
+        Pragma   Pragma
+		//名称列表
+        NameList []*Name
+		// 类型表达式
+        Type     Expr // nil means no type
+		// 值表达公式
+        Values   Expr // nil means no values
+		//实现了声明
+        decl
 	}
 
 	// Name Type
 	TypeDecl struct {
+
 		Group      *Group // nil means not part of a group
 		Pragma     Pragma
-		Name       *Name
-		TParamList []*Field // nil means no type parameters
-		Alias      bool
-		Type       Expr
-		decl
+		//类型名
+        Name       *Name
+		//类型参数 
+        TParamList []*Field // nil means no type parameters
+		//别名
+        Alias      bool
+		//类型表达式
+        Type       Expr
+		//实现了声明
+        decl
 	}
 
 	// NameList Type
 	// NameList Type = Values
 	// NameList      = Values
 	VarDecl struct {
+
 		Group    *Group // nil means not part of a group
-		Pragma   Pragma
-		NameList []*Name
-		Type     Expr // nil means no type
-		Values   Expr // nil means no values
-		decl
+		
+        Pragma   Pragma
+		
+        NameList []*Name
+		
+        Type     Expr // nil means no type
+		
+        Values   Expr // nil means no values
+		
+        decl
 	}
 
 	// func          Name Type { Body }
@@ -403,11 +462,16 @@ type (
 	}
 
 	ForStmt struct {
+
 		Init SimpleStmt // incl. *RangeClause
-		Cond Expr
-		Post SimpleStmt
-		Body *BlockStmt
-		stmt
+		//表达式
+        Cond Expr
+		//简单句
+        Post SimpleStmt
+		//块语句
+        Body *BlockStmt
+		//实现了语句
+        stmt
 	}
 
 	SwitchStmt struct {
@@ -473,7 +537,10 @@ const (
 )
 
 type Comment struct {
+    //注释类型
 	Kind CommentKind
+    //文本
 	Text string
-	Next *Comment
+	//下个注释
+    Next *Comment
 }
